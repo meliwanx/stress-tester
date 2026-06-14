@@ -12,6 +12,7 @@ import sqlite3
 import time
 from datetime import datetime
 from typing import List
+from urllib.parse import urlparse
 
 import aiohttp
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
@@ -118,6 +119,7 @@ def init_db(conn=None):
             qps REAL DEFAULT 0,
             total_time REAL DEFAULT 0,
             error_details TEXT DEFAULT '[]',
+            request_details TEXT DEFAULT '[]',
             image_path TEXT,
             started_at TEXT,
             completed_at TEXT,
@@ -131,6 +133,7 @@ def init_db(conn=None):
     ensure_column(conn, "suppliers", "test_mode", "TEXT DEFAULT 'step'")
     ensure_column(conn, "stress_tests", "source", "TEXT DEFAULT 'supplier'")
     ensure_column(conn, "stress_tests", "test_mode", "TEXT DEFAULT 'step'")
+    ensure_column(conn, "stress_tests", "request_details", "TEXT DEFAULT '[]'")
     # 服务重启时，将之前未完成的 running 任务标记为 failed，防止状态永久卡住
     conn.execute(
         "UPDATE stress_tests SET status='failed', completed_at=datetime('now','localtime') WHERE status='running'"
@@ -285,25 +288,67 @@ def calc_percentile(sorted_data, p):
     return sorted_data[f] + (k - f) * (sorted_data[c] - sorted_data[f])
 
 
-def save_image(data_item, prefix=""):
+def image_extension(content_type: str) -> str:
+    """根据常见图片 MIME 类型选择文件后缀。"""
+    mime = (content_type or "").split(";")[0].strip().lower()
+    return {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+    }.get(mime, ".png")
+
+
+def save_image_bytes(img_data: bytes, prefix: str = "", extension: str = ".png"):
+    """将图片二进制保存到静态目录，返回可由浏览器访问的路径。"""
+    if not img_data:
+        return None
+    safe_extension = extension if extension.startswith(".") else f".{extension}"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    filename = f"{prefix}{timestamp}{safe_extension}"
+    filepath = os.path.join(IMAGES_DIR, filename)
+    os.makedirs(IMAGES_DIR, exist_ok=True)
+    with open(filepath, "wb") as f:
+        f.write(img_data)
+    return f"/static/images/{filename}"
+
+
+def save_data_url_image(url: str, prefix: str = ""):
+    """保存 data:image/...;base64,... 形式的图片，避免浏览器新标签页拦截 data URL。"""
+    header, separator, encoded = url.partition(",")
+    if not separator or not header.lower().startswith("data:image/") or ";base64" not in header.lower():
+        return None
+    content_type = header[5:].split(";")[0]
+    return save_image_bytes(base64.b64decode(encoded), prefix, image_extension(content_type))
+
+
+async def save_image(data_item, prefix="", session=None):
     """
-    保存图片到本地，支持 b64_json 和 url 两种格式
+    保存图片到本地，支持 b64_json 和 data URL；HTTP(S) URL 保留为安全外链。
     :param data_item: API 返回的 data 数组中的单个元素
     :param prefix: 文件名前缀
-    :return: 保存后的相对路径，保存失败返回 None
+    :param session: 兼容旧调用的可选参数
+    :return: 保存后的相对路径；HTTP(S) 返回原始外链；其他失败返回 None
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{prefix}{timestamp}.png"
-    filepath = os.path.join(IMAGES_DIR, filename)
-
     try:
         if data_item.get("b64_json"):
             img_data = base64.b64decode(data_item["b64_json"])
-            with open(filepath, "wb") as f:
-                f.write(img_data)
-            return f"/static/images/{filename}"
-        elif data_item.get("url"):
-            return data_item["url"]  # URL 图片直接返回原始链接，不做下载
+            return save_image_bytes(img_data, prefix, ".png")
+
+        raw_url = str(data_item.get("url") or "").strip()
+        if not raw_url:
+            return None
+
+        if raw_url.startswith("/static/images/"):
+            return raw_url
+
+        if raw_url.lower().startswith("data:image/"):
+            return save_data_url_image(raw_url, prefix)
+
+        parsed = urlparse(raw_url)
+        if parsed.scheme in {"http", "https"}:
+            return raw_url
     except Exception:
         pass
     return None
@@ -341,7 +386,7 @@ async def verify_connection(url, api_key, model, custom_url=False):
                     data = await resp.json()
                     items = data.get("data", [])
                     if items and len(items) > 0:
-                        img_path = save_image(items[0], prefix="test_")
+                        img_path = await save_image(items[0], prefix="test_", session=session)
                         return True, "测试通过，成功生成图片", img_path
                     return False, "响应中未包含图片数据", None
                 text = await resp.text()
@@ -366,7 +411,16 @@ async def run_single_test(test_id, url, api_key, model, concurrency, custom_url=
     api_url = build_api_url(url, custom_url)
     conn = get_db()
     conn.execute(
-        "UPDATE stress_tests SET status='running', started_at=datetime('now','localtime'), total_requests=? WHERE id=?",
+        """
+        UPDATE stress_tests SET
+            status='running',
+            started_at=datetime('now','localtime'),
+            total_requests=?,
+            error_details='[]',
+            request_details='[]',
+            image_path=NULL
+        WHERE id=?
+        """,
         (concurrency, test_id)
     )
     conn.commit()
@@ -387,8 +441,16 @@ async def run_single_test(test_id, url, api_key, model, concurrency, custom_url=
     async def single_request(session, idx):
         """
         发起单个 HTTP 请求并记录结果
-        返回 (elapsed_time, success_boolean, error_message_or_data_item)
+        返回 (request_detail, image_data_item)
         """
+        request_detail = {
+            "index": idx + 1,
+            "success": False,
+            "status_code": None,
+            "response_time": 0,
+            "message": "",
+            "image_path": None,
+        }
         start = time.time()
         try:
             async with session.post(
@@ -396,17 +458,32 @@ async def run_single_test(test_id, url, api_key, model, concurrency, custom_url=
                 timeout=aiohttp.ClientTimeout(total=GLOBAL_TIMEOUT)
             ) as resp:
                 elapsed = time.time() - start
+                request_detail["status_code"] = resp.status
+                request_detail["response_time"] = round(elapsed, 3)
                 if resp.status == 200:
-                    data = await resp.json()
+                    try:
+                        data = await resp.json()
+                    except Exception:
+                        request_detail["message"] = "响应不是有效 JSON"
+                        return request_detail, None
                     items = data.get("data", [])
                     if items and len(items) > 0:
-                        return (elapsed, True, items[0])
-                    return (0, False, f"#{idx}: 无图片数据")
-                return (0, False, f"#{idx}: HTTP {resp.status}")
+                        request_detail["success"] = True
+                        request_detail["message"] = "成功"
+                        return request_detail, items[0]
+                    request_detail["message"] = "无图片数据"
+                    return request_detail, None
+                text = await resp.text()
+                request_detail["message"] = f"HTTP {resp.status}: {text[:300]}"
+                return request_detail, None
         except asyncio.TimeoutError:
-            return (0, False, f"#{idx}: 超时（{GLOBAL_TIMEOUT}秒）")
+            request_detail["response_time"] = round(time.time() - start, 3)
+            request_detail["message"] = f"超时（{GLOBAL_TIMEOUT}秒）"
+            return request_detail, None
         except Exception as e:
-            return (0, False, f"#{idx}: {str(e)[:80]}")
+            request_detail["response_time"] = round(time.time() - start, 3)
+            request_detail["message"] = str(e)[:200]
+            return request_detail, None
 
     # 执行并发请求，connector 控制连接池大小
     t0 = time.time()
@@ -420,18 +497,25 @@ async def run_single_test(test_id, url, api_key, model, concurrency, custom_url=
     errors = []
     first_success_item = None
 
-    for elapsed, ok, info in results:
-        if ok:
-            success_times.append(elapsed)
+    request_details = []
+    first_success_detail = None
+
+    for detail, image_item in results:
+        request_details.append(detail)
+        if detail["success"]:
+            success_times.append(detail["response_time"])
             if first_success_item is None:
-                first_success_item = info
+                first_success_item = image_item
+                first_success_detail = detail
         else:
-            errors.append(info)
+            errors.append(f"#{detail['index']}: {detail['message']}")
 
     # 保存第一张成功的图片
     image_path = None
     if first_success_item:
-        image_path = save_image(first_success_item, prefix=f"stress_{concurrency}_")
+        image_path = await save_image(first_success_item, prefix=f"stress_{concurrency}_")
+        if first_success_detail is not None:
+            first_success_detail["image_path"] = image_path
 
     # 计算统计数据
     success_times.sort()
@@ -443,7 +527,7 @@ async def run_single_test(test_id, url, api_key, model, concurrency, custom_url=
             status=?, success_count=?, failure_count=?,
             avg_response_time=?, min_response_time=?, max_response_time=?,
             p50_response_time=?, p90_response_time=?, p95_response_time=?, p99_response_time=?,
-            qps=?, total_time=?, error_details=?, image_path=?,
+            qps=?, total_time=?, error_details=?, request_details=?, image_path=?,
             completed_at=datetime('now','localtime')
         WHERE id=?
     """, (
@@ -459,6 +543,7 @@ async def run_single_test(test_id, url, api_key, model, concurrency, custom_url=
         round((n + len(errors)) / total_time, 2) if total_time > 0 else 0,
         round(total_time, 3),
         json.dumps(errors[:50], ensure_ascii=False),
+        json.dumps(request_details, ensure_ascii=False),
         image_path,
         test_id
     ))
@@ -472,10 +557,29 @@ async def run_task_sequence(test_ids, concurrency_levels, url, api_key, model, c
         try:
             await run_single_test(tid, url, api_key, model, c, custom_url)
         except Exception as e:
+            request_details = [{
+                "index": None,
+                "success": False,
+                "status_code": None,
+                "response_time": 0,
+                "message": f"任务异常: {str(e)}",
+                "image_path": None,
+            }]
             conn = get_db()
             conn.execute(
-                "UPDATE stress_tests SET status='failed', error_details=?, completed_at=datetime('now','localtime') WHERE id=?",
-                (json.dumps([f"任务异常: {str(e)}"], ensure_ascii=False), tid)
+                """
+                UPDATE stress_tests SET
+                    status='failed',
+                    error_details=?,
+                    request_details=?,
+                    completed_at=datetime('now','localtime')
+                WHERE id=?
+                """,
+                (
+                    json.dumps([f"任务异常: {str(e)}"], ensure_ascii=False),
+                    json.dumps(request_details, ensure_ascii=False),
+                    tid,
+                )
             )
             conn.commit()
             conn.close()

@@ -1,19 +1,31 @@
+import asyncio
+import base64
+import json
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 
+from aiohttp import web
 from fastapi.testclient import TestClient
 
 import main
 
 
+PNG_1X1 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGA"
+    "WjR9awAAAABJRU5ErkJggg=="
+)
+
+
 class ManualAdminTaskTests(unittest.TestCase):
     def setUp(self):
         self.original_db_path = main.DB_PATH
+        self.original_images_dir = main.IMAGES_DIR
         self.original_run_task_sequence = main.run_task_sequence
         self.tmpdir = tempfile.TemporaryDirectory()
         main.DB_PATH = str(Path(self.tmpdir.name) / "data.db")
+        main.IMAGES_DIR = str(Path(self.tmpdir.name) / "static" / "images")
         main.init_db()
 
         async def fake_run_task_sequence(*args, **kwargs):
@@ -24,6 +36,7 @@ class ManualAdminTaskTests(unittest.TestCase):
 
     def tearDown(self):
         main.run_task_sequence = self.original_run_task_sequence
+        main.IMAGES_DIR = self.original_images_dir
         main.DB_PATH = self.original_db_path
         self.tmpdir.cleanup()
 
@@ -121,6 +134,81 @@ class ManualAdminTaskTests(unittest.TestCase):
         self.assertEqual(tasks[0]["concurrency"], 80)
         self.assertEqual(tasks[0]["source"], "admin")
         self.assertEqual(tasks[0]["test_mode"], "single")
+
+    def test_init_db_adds_request_details_column(self):
+        conn = main.get_db()
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(stress_tests)").fetchall()}
+        conn.close()
+
+        self.assertIn("request_details", columns)
+
+    def test_save_image_persists_data_url_as_local_static_image(self):
+        data_url = f"data:image/png;base64,{PNG_1X1}"
+
+        path = asyncio.run(main.save_image({"url": data_url}, prefix="sample_"))
+
+        self.assertIsNotNone(path)
+        self.assertTrue(path.startswith("/static/images/sample_"))
+        saved = Path(main.IMAGES_DIR) / Path(path).name
+        self.assertEqual(saved.read_bytes(), base64.b64decode(PNG_1X1))
+
+    def test_run_single_test_records_each_request_detail(self):
+        async def exercise():
+            app = web.Application()
+
+            async def handler(request):
+                return web.json_response({"data": [{"b64_json": PNG_1X1}]})
+
+            app.router.add_post("/images", handler)
+            runner = web.AppRunner(app)
+            await runner.setup()
+            site = web.TCPSite(runner, "127.0.0.1", 0)
+            await site.start()
+            port = site._server.sockets[0].getsockname()[1]
+
+            conn = main.get_db()
+            supplier_id, test_ids = main.create_manual_test_records(
+                conn,
+                name="明细任务",
+                phone="",
+                url=f"http://127.0.0.1:{port}/images",
+                api_key="sk-test",
+                model="gpt-image-2",
+                custom_url=True,
+                concurrency_levels=[2],
+                mode="single",
+            )
+            conn.close()
+
+            try:
+                await main.run_single_test(
+                    test_ids[0],
+                    f"http://127.0.0.1:{port}/images",
+                    "sk-test",
+                    "gpt-image-2",
+                    2,
+                    custom_url=True,
+                )
+            finally:
+                await runner.cleanup()
+
+            return supplier_id, test_ids[0]
+
+        _, test_id = asyncio.run(exercise())
+
+        conn = main.get_db()
+        row = conn.execute("SELECT * FROM stress_tests WHERE id=?", (test_id,)).fetchone()
+        conn.close()
+
+        details = json.loads(row["request_details"])
+        self.assertEqual(row["status"], "completed")
+        self.assertEqual(row["success_count"], 2)
+        self.assertEqual(len(details), 2)
+        self.assertEqual([detail["index"] for detail in details], [1, 2])
+        self.assertTrue(all(detail["success"] for detail in details))
+        self.assertTrue(all(detail["status_code"] == 200 for detail in details))
+        self.assertTrue(all(detail["response_time"] > 0 for detail in details))
+        self.assertTrue(any(detail.get("image_path") for detail in details))
 
 
 if __name__ == "__main__":

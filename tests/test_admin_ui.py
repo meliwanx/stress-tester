@@ -24,6 +24,16 @@ class AdminUiTests(unittest.TestCase):
         self.assertIn('id="manualConcurrency"', self.html)
         self.assertIn('id="manualStepped"', self.html)
 
+    def test_sample_image_uses_in_page_preview_not_blank_target(self):
+        self.assertIn('id="imagePreviewModal"', self.html)
+        self.assertIn('data-preview-image', self.html)
+        self.assertNotIn('target="_blank" rel="noreferrer">查看样图</a>', self.html)
+
+    def test_task_cards_render_request_details(self):
+        self.assertIn('parseRequestDetails', self.html)
+        self.assertIn('renderRequestDetails', self.html)
+        self.assertIn('接口请求详情', self.html)
+
 
 if __name__ == "__main__":
     unittest.main()

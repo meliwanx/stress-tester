@@ -498,6 +498,96 @@
             white-space: pre-wrap;
         }
 
+        .link-button {
+            border: 0;
+            padding: 0;
+            color: #0f766e;
+            background: transparent;
+            font-size: 12px;
+            font-weight: 740;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .sample-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .request-details {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #edf1f7;
+        }
+
+        .request-details summary {
+            cursor: pointer;
+            color: #344054;
+            font-size: 12px;
+            font-weight: 740;
+        }
+
+        .request-table-wrap {
+            margin-top: 10px;
+            max-height: 230px;
+            overflow: auto;
+            border: 1px solid #dde4ef;
+            border-radius: 8px;
+        }
+
+        .request-table {
+            width: 100%;
+            min-width: 560px;
+            border-collapse: collapse;
+            background: #fff;
+            font-size: 12px;
+        }
+
+        .request-table th,
+        .request-table td {
+            padding: 8px 9px;
+            border-bottom: 1px solid #edf1f7;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .request-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            color: #667085;
+            background: #f9fbfe;
+            font-weight: 740;
+        }
+
+        .request-message {
+            max-width: 240px;
+            color: #475467;
+            word-break: break-word;
+        }
+
+        .request-status {
+            display: inline-flex;
+            align-items: center;
+            min-height: 20px;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 740;
+        }
+
+        .request-success {
+            color: #027a48;
+            background: #dcfae6;
+        }
+
+        .request-failed {
+            color: #b42318;
+            background: #fee4e2;
+        }
+
         .empty-state {
             padding: 42px 20px;
             text-align: center;
@@ -572,6 +662,31 @@
 
         .close-btn:hover {
             background: #e1e7f0;
+        }
+
+        .image-modal {
+            width: min(980px, 100%);
+        }
+
+        .image-preview-body {
+            display: grid;
+            place-items: center;
+            min-height: 320px;
+            padding: 16px;
+            background: #0f172a;
+        }
+
+        .image-preview-body img {
+            display: block;
+            max-width: 100%;
+            max-height: 70vh;
+            object-fit: contain;
+            background: #fff;
+        }
+
+        .image-preview-error {
+            color: #fff;
+            font-size: 14px;
         }
 
         .form-actions {
@@ -778,6 +893,22 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </section>
+
+    <section id="imagePreviewModal" class="modal-mask hidden" aria-hidden="true">
+        <div class="modal image-modal" role="dialog" aria-modal="true" aria-labelledby="imagePreviewTitle">
+            <div class="modal-head">
+                <div>
+                    <h2 id="imagePreviewTitle" class="modal-title">压测样图</h2>
+                    <p class="muted small" style="margin-top: 5px;">当前任务保存的成功请求样图。</p>
+                </div>
+                <button id="closeImagePreviewButton" class="close-btn" type="button" aria-label="关闭">×</button>
+            </div>
+            <div class="image-preview-body">
+                <img id="imagePreviewImg" alt="压测样图">
+                <div id="imagePreviewError" class="image-preview-error hidden">样图加载失败</div>
+            </div>
         </div>
     </section>
 
@@ -1034,6 +1165,7 @@
                         const failure = toNumber(task.failure_count);
                         const successRate = total ? `${Math.round(success / total * 100)}%` : "-";
                         const errors = parseErrors(task.error_details);
+                        const requestDetails = parseRequestDetails(task.request_details);
                         return `
                             <article class="task-card">
                                 <div class="task-head">
@@ -1074,12 +1206,78 @@
                                         <div class="metric-value">${formatTime(task.completed_at)}</div>
                                     </div>
                                 </div>
-                                ${task.image_path ? `<div style="margin-top: 12px;"><a href="${escapeHtml(task.image_path)}" target="_blank" rel="noreferrer">查看样图</a></div>` : ""}
+                                ${task.image_path ? `<div class="sample-actions"><button class="link-button" type="button" data-preview-image="${escapeHtml(task.image_path)}">查看样图</button></div>` : ""}
+                                ${renderRequestDetails(requestDetails)}
                                 ${errors.length ? `<pre class="error-list">${escapeHtml(errors.slice(0, 6).join("\n"))}</pre>` : ""}
                             </article>
                         `;
                     }).join("")}
                 </div>
+            `;
+        }
+
+        function parseRequestDetails(value) {
+            if (!value) return [];
+            let parsed = value;
+            if (!Array.isArray(parsed)) {
+                try {
+                    parsed = JSON.parse(value);
+                } catch (err) {
+                    return [];
+                }
+            }
+            if (!Array.isArray(parsed)) return [];
+            return parsed.map((item, index) => {
+                if (item && typeof item === "object") return item;
+                return {
+                    index: index + 1,
+                    success: false,
+                    status_code: null,
+                    response_time: 0,
+                    message: String(item),
+                    image_path: null
+                };
+            });
+        }
+
+        function renderRequestDetails(details) {
+            if (!details.length) return "";
+            return `
+                <details class="request-details">
+                    <summary>接口请求详情（${details.length} 条）</summary>
+                    <div class="request-table-wrap">
+                        <table class="request-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>状态</th>
+                                    <th>HTTP</th>
+                                    <th>耗时</th>
+                                    <th>样图</th>
+                                    <th>消息</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${details.map(renderRequestDetailRow).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            `;
+        }
+
+        function renderRequestDetailRow(detail) {
+            const success = detail.success === true;
+            const imagePath = detail.image_path || "";
+            return `
+                <tr>
+                    <td>${escapeHtml(detail.index ?? "-")}</td>
+                    <td><span class="request-status ${success ? "request-success" : "request-failed"}">${success ? "成功" : "失败"}</span></td>
+                    <td>${escapeHtml(detail.status_code ?? "-")}</td>
+                    <td>${toNumber(detail.response_time)}s</td>
+                    <td>${imagePath ? `<button class="link-button" type="button" data-preview-image="${escapeHtml(imagePath)}">样图</button>` : "-"}</td>
+                    <td class="request-message">${escapeHtml(detail.message || "-")}</td>
+                </tr>
             `;
         }
 
@@ -1112,6 +1310,35 @@
         function closeManualTaskModal() {
             $("manualTaskModal").classList.add("hidden");
             $("manualTaskModal").setAttribute("aria-hidden", "true");
+        }
+
+        function openImagePreview(src) {
+            if (!src) return;
+            const modal = $("imagePreviewModal");
+            const image = $("imagePreviewImg");
+            const error = $("imagePreviewError");
+            error.classList.add("hidden");
+            image.classList.remove("hidden");
+            image.onload = () => {
+                error.classList.add("hidden");
+                image.classList.remove("hidden");
+            };
+            image.onerror = () => {
+                image.classList.add("hidden");
+                error.classList.remove("hidden");
+            };
+            image.removeAttribute("src");
+            image.src = src;
+            modal.classList.remove("hidden");
+            modal.setAttribute("aria-hidden", "false");
+        }
+
+        function closeImagePreview() {
+            const modal = $("imagePreviewModal");
+            const image = $("imagePreviewImg");
+            modal.classList.add("hidden");
+            modal.setAttribute("aria-hidden", "true");
+            image.removeAttribute("src");
         }
 
         function updateManualModePreview() {
@@ -1165,6 +1392,13 @@
         }
 
         document.addEventListener("click", (event) => {
+            const previewButton = event.target.closest("[data-preview-image]");
+            if (previewButton) {
+                event.preventDefault();
+                openImagePreview(previewButton.dataset.previewImage);
+                return;
+            }
+
             const manualButton = event.target.closest("[data-open-manual-task]");
             if (manualButton) {
                 event.preventDefault();
@@ -1180,19 +1414,29 @@
             if (event.target === $("manualTaskModal")) {
                 closeManualTaskModal();
             }
+
+            if (event.target === $("imagePreviewModal")) {
+                closeImagePreview();
+            }
         });
 
         $("loginForm").addEventListener("submit", login);
         $("logoutButton").addEventListener("click", logout);
         $("refreshButton").addEventListener("click", () => loadData());
         $("closeManualTaskButton").addEventListener("click", closeManualTaskModal);
+        $("closeImagePreviewButton").addEventListener("click", closeImagePreview);
         $("cancelManualTaskButton").addEventListener("click", closeManualTaskModal);
         $("manualTaskForm").addEventListener("submit", submitManualTask);
         $("manualConcurrency").addEventListener("input", updateManualModePreview);
         $("manualStepped").addEventListener("change", updateManualModePreview);
         document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape" && !$("manualTaskModal").classList.contains("hidden")) {
-                closeManualTaskModal();
+            if (event.key === "Escape") {
+                if (!$("manualTaskModal").classList.contains("hidden")) {
+                    closeManualTaskModal();
+                }
+                if (!$("imagePreviewModal").classList.contains("hidden")) {
+                    closeImagePreview();
+                }
             }
         });
 
