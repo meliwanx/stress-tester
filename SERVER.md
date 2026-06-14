@@ -29,7 +29,21 @@
 - `stress_test_v3.tar.gz`
 - `stress_test_v4.tar.gz`
 
-核对时线上正在运行的文件与 `stress_test_v2.tar.gz` 一致，属于旧版；本地 `/Users/liwanx/Documents/Python/生图压测平台` 是 `v4` 同源后的更新版，并额外包含管理员手动创建任务等新功能。
+首次核对时线上正在运行的文件与 `stress_test_v2.tar.gz` 一致，属于旧版；本地 `/Users/liwanx/Documents/Python/生图压测平台` 是 `v4` 同源后的更新版，并额外包含管理员手动创建任务等新功能。
+
+## 最近部署记录
+
+- 部署时间：`2026-06-14 18:39 CST`
+- 部署来源：`meliwanx/stress-tester` 的 `master` 分支
+- 部署提交：`92f4844`
+- 备份文件：`/opt/backups/stress_test_20260614_183821.tar.gz`
+- systemd 服务：`stress-test.service`
+- 服务状态：部署后为 `active (running)`
+- 运行进程：`/opt/conda/bin/python main.py`
+- 验证结果：
+  - `/` 返回新前台，包含“供应商联系电话”和 Key 额度提示
+  - `/admin` 返回新后台，包含“管理员登录”和“手动创建任务”
+  - `/api/me` 未登录时返回 `401`，不再是旧版 `404`
 
 ## 部署前检查
 
