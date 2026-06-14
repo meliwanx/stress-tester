@@ -64,7 +64,8 @@
             box-shadow: 0 0 0 4px #d1fae5;
         }
 
-        .topbar-actions {
+        .topbar-actions,
+        .toolbar-actions {
             display: flex;
             align-items: center;
             gap: 10px;
@@ -191,6 +192,12 @@
             color: #344054;
             font-size: 13px;
             font-weight: 650;
+        }
+
+        .field-hint {
+            color: #667085;
+            font-size: 12px;
+            line-height: 1.45;
         }
 
         input,
@@ -503,6 +510,10 @@
             font-size: 16px;
         }
 
+        .empty-state .btn {
+            margin-top: 16px;
+        }
+
         .modal-mask {
             position: fixed;
             inset: 0;
@@ -641,13 +652,13 @@
 
     <section id="adminView" class="hidden">
         <nav class="topbar">
-            <a href="/" class="brand">
+            <div class="brand" aria-label="生图压测平台管理后台">
                 <span class="brand-mark"></span>
                 生图压测平台
-            </a>
+            </div>
             <div class="topbar-actions">
                 <a class="btn" href="/">前台提交页</a>
-                <button id="openManualTaskButton" class="btn btn-blue" type="button">手动创建任务</button>
+                <button id="openManualTaskButton" class="btn btn-blue" type="button" data-open-manual-task>新建压测任务</button>
                 <button id="logoutButton" class="btn btn-danger" type="button">退出</button>
             </div>
         </nav>
@@ -686,13 +697,17 @@
 
             <section class="toolbar">
                 <strong>任务列表</strong>
-                <button id="refreshButton" class="btn" type="button">刷新</button>
+                <div class="toolbar-actions">
+                    <button class="btn btn-blue" type="button" data-open-manual-task>新建压测任务</button>
+                    <button id="refreshButton" class="btn" type="button">刷新</button>
+                </div>
             </section>
 
             <section id="supplierList" class="supplier-list">
                 <div class="empty-state">
                     <h3>暂无压测数据</h3>
                     <p>创建或提交任务后会显示在这里。</p>
+                    <button class="btn btn-blue" type="button" data-open-manual-task>新建压测任务</button>
                 </div>
             </section>
         </main>
@@ -702,8 +717,8 @@
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manualTaskTitle">
             <div class="modal-head">
                 <div>
-                    <h2 id="manualTaskTitle" class="modal-title">手动创建测试任务</h2>
-                    <p class="muted small" style="margin-top: 5px;">创建后会立即进入后台执行队列。</p>
+                    <h2 id="manualTaskTitle" class="modal-title">管理员新建压测任务</h2>
+                    <p class="muted small" style="margin-top: 5px;">此表单只在管理后台使用，创建后会立即进入后台执行队列。</p>
                 </div>
                 <button id="closeManualTaskButton" class="close-btn" type="button" aria-label="关闭">×</button>
             </div>
@@ -712,7 +727,7 @@
                 <div class="modal-body">
                     <div class="form-grid">
                         <div class="field">
-                            <label for="manualName">任务名称</label>
+                            <label for="manualName">任务/供应商名称</label>
                             <input id="manualName" name="name" required>
                         </div>
                         <div class="field">
@@ -732,15 +747,17 @@
                             <input id="manualModel" name="model" value="gpt-image-2" required>
                         </div>
                         <div class="field">
-                            <label for="manualConcurrency">并发设置</label>
-                            <input id="manualConcurrency" name="concurrency" value="20" required>
+                            <label for="manualConcurrency">压测并发次数</label>
+                            <input id="manualConcurrency" name="concurrency" value="100" placeholder="100 或 20,50,100" required>
+                            <span class="field-hint">不启用阶梯时只执行第一个并发数，例如 100。</span>
                         </div>
                         <div class="field">
-                            <label>模式选择</label>
+                            <label>是否阶梯压测</label>
                             <div class="check-row">
                                 <input id="manualStepped" name="stepped" type="checkbox">
-                                <label for="manualStepped">阶梯式并发</label>
+                                <label for="manualStepped">启用阶梯压测</label>
                             </div>
+                            <span class="field-hint">启用后，单个目标值会按 20、50、100 等阶梯执行；逗号分隔时按输入序列执行。</span>
                         </div>
                         <div class="field">
                             <label>URL 规则</label>
@@ -754,7 +771,7 @@
                     <div id="manualTaskSuccess" class="success-box hidden"></div>
                 </div>
                 <div class="modal-foot">
-                    <span class="muted small" id="manualModePreview">单并发：20</span>
+                    <span class="muted small" id="manualModePreview">单并发：100</span>
                     <div>
                         <button class="btn" id="cancelManualTaskButton" type="button">取消</button>
                         <button class="btn btn-primary" id="submitManualTaskButton" type="submit">创建任务</button>
@@ -970,6 +987,7 @@
                     <div class="empty-state">
                         <h3>暂无压测数据</h3>
                         <p>创建或提交任务后会显示在这里。</p>
+                        <button class="btn btn-blue" type="button" data-open-manual-task>新建压测任务</button>
                     </div>
                 `;
                 return;
@@ -1133,7 +1151,7 @@
                 success.classList.remove("hidden");
                 $("manualTaskForm").reset();
                 $("manualModel").value = "gpt-image-2";
-                $("manualConcurrency").value = "20";
+                $("manualConcurrency").value = "100";
                 updateManualModePreview();
                 closeManualTaskModal();
                 state.expandedSupplierId = Number(result.supplier_id);
@@ -1147,6 +1165,13 @@
         }
 
         document.addEventListener("click", (event) => {
+            const manualButton = event.target.closest("[data-open-manual-task]");
+            if (manualButton) {
+                event.preventDefault();
+                openManualTaskModal();
+                return;
+            }
+
             const toggle = event.target.closest("[data-toggle-supplier]");
             if (toggle) {
                 toggleSupplier(toggle.dataset.toggleSupplier);
@@ -1160,7 +1185,6 @@
         $("loginForm").addEventListener("submit", login);
         $("logoutButton").addEventListener("click", logout);
         $("refreshButton").addEventListener("click", () => loadData());
-        $("openManualTaskButton").addEventListener("click", openManualTaskModal);
         $("closeManualTaskButton").addEventListener("click", closeManualTaskModal);
         $("cancelManualTaskButton").addEventListener("click", closeManualTaskModal);
         $("manualTaskForm").addEventListener("submit", submitManualTask);
