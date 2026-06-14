@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>压测管理 - 生图压测平台</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: #172033;
+            background: #f5f7fb;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font: inherit;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 58px;
+            padding: 0 28px;
+            background: rgba(255, 255, 255, 0.96);
+            border-bottom: 1px solid #dde4ef;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #172033;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .brand-mark {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #10b981;
+            box-shadow: 0 0 0 4px #d1fae5;
+        }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .container {
+            width: min(1180px, calc(100% - 40px));
+            margin: 0 auto;
+            padding: 28px 0 44px;
+        }
+
+        .page-head {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 24px;
+            line-height: 1.25;
+        }
+
+        .muted {
+            color: #667085;
+        }
+
+        .small {
+            font-size: 12px;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 8px;
+            padding: 9px 14px;
+            color: #172033;
+            background: #eef2f7;
+            font-size: 14px;
+            font-weight: 650;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+
+        .btn:hover {
+            background: #e1e7f0;
+        }
+
+        .btn-primary {
+            color: #fff;
+            background: #0f766e;
+        }
+
+        .btn-primary:hover {
+            background: #115e59;
+        }
+
+        .btn-blue {
+            color: #fff;
+            background: #2563eb;
+        }
+
+        .btn-blue:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-danger {
+            color: #b42318;
+            background: #fee4e2;
+        }
+
+        .btn-danger:hover {
+            background: #fecdca;
+        }
+
+        .btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.62;
+        }
+
+        .login-shell {
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .login-card {
+            width: min(420px, 100%);
+            padding: 28px;
+            background: #fff;
+            border: 1px solid #dde4ef;
+            border-radius: 8px;
+            box-shadow: 0 16px 45px rgba(15, 23, 42, 0.08);
+        }
+
+        .login-card h1 {
+            margin-bottom: 8px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px 16px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .field.full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            color: #344054;
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            min-height: 40px;
+            border: 1px solid #cfd8e6;
+            border-radius: 8px;
+            padding: 9px 11px;
+            color: #172033;
+            background: #fff;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        textarea {
+            min-height: 70px;
+            resize: vertical;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: #0f766e;
+            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+        }
+
+        .check-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 40px;
+        }
+
+        .check-row input {
+            width: 16px;
+            min-height: 16px;
+            accent-color: #0f766e;
+        }
+
+        .error-box,
+        .success-box {
+            margin-top: 14px;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+
+        .error-box {
+            color: #b42318;
+            background: #fee4e2;
+        }
+
+        .success-box {
+            color: #027a48;
+            background: #dcfae6;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .stat-card,
+        .supplier-card,
+        .task-card,
+        .empty-state {
+            background: #fff;
+            border: 1px solid #dde4ef;
+            border-radius: 8px;
+        }
+
+        .stat-card {
+            padding: 16px;
+        }
+
+        .stat-label {
+            color: #667085;
+            font-size: 12px;
+            font-weight: 650;
+        }
+
+        .stat-value {
+            margin-top: 8px;
+            font-size: 28px;
+            line-height: 1;
+            font-weight: 760;
+        }
+
+        .stat-sub {
+            margin-top: 7px;
+            color: #667085;
+            font-size: 12px;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 12px 0;
+        }
+
+        .live {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #667085;
+            font-size: 12px;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #17b26a;
+        }
+
+        .supplier-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .supplier-card {
+            overflow: hidden;
+        }
+
+        .supplier-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 18px;
+            align-items: center;
+            padding: 17px 18px;
+            border: 0;
+            width: 100%;
+            text-align: left;
+            color: inherit;
+            background: #fff;
+        }
+
+        .supplier-header:hover {
+            background: #f9fbfe;
+        }
+
+        .supplier-title-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .supplier-title {
+            font-size: 16px;
+            font-weight: 740;
+        }
+
+        .supplier-url {
+            margin-top: 5px;
+            color: #667085;
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .supplier-side {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            color: #667085;
+            font-size: 12px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            border-radius: 999px;
+            padding: 3px 9px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .badge-admin {
+            color: #075985;
+            background: #e0f2fe;
+        }
+
+        .badge-supplier {
+            color: #475467;
+            background: #eef2f7;
+        }
+
+        .badge-step {
+            color: #0f766e;
+            background: #ccfbef;
+        }
+
+        .badge-single {
+            color: #6941c6;
+            background: #f4ebff;
+        }
+
+        .badge-pending {
+            color: #475467;
+            background: #eef2f7;
+        }
+
+        .badge-running {
+            color: #175cd3;
+            background: #dbeafe;
+        }
+
+        .badge-completed {
+            color: #027a48;
+            background: #dcfae6;
+        }
+
+        .badge-failed {
+            color: #b42318;
+            background: #fee4e2;
+        }
+
+        .task-panel {
+            display: none;
+            padding: 0 18px 18px;
+            border-top: 1px solid #edf1f7;
+        }
+
+        .supplier-card.expanded .task-panel {
+            display: block;
+        }
+
+        .task-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            padding-top: 16px;
+        }
+
+        .task-card {
+            padding: 14px;
+        }
+
+        .task-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .task-name {
+            color: #172033;
+            font-size: 14px;
+            font-weight: 760;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px 12px;
+        }
+
+        .metric {
+            min-width: 0;
+        }
+
+        .metric-label {
+            color: #667085;
+            font-size: 11px;
+        }
+
+        .metric-value {
+            margin-top: 3px;
+            color: #172033;
+            font-size: 13px;
+            font-weight: 720;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .error-list {
+            margin-top: 12px;
+            padding: 10px;
+            max-height: 110px;
+            overflow: auto;
+            border-radius: 8px;
+            color: #b42318;
+            background: #fff4f2;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .empty-state {
+            padding: 42px 20px;
+            text-align: center;
+            color: #667085;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 8px;
+            color: #344054;
+            font-size: 16px;
+        }
+
+        .modal-mask {
+            position: fixed;
+            inset: 0;
+            z-index: 40;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            background: rgba(15, 23, 42, 0.42);
+        }
+
+        .modal {
+            width: min(760px, 100%);
+            max-height: min(90vh, 820px);
+            overflow: auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+        }
+
+        .modal-head,
+        .modal-foot {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 18px 20px;
+        }
+
+        .modal-head {
+            border-bottom: 1px solid #edf1f7;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-foot {
+            border-top: 1px solid #edf1f7;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 760;
+        }
+
+        .close-btn {
+            width: 34px;
+            height: 34px;
+            border: 0;
+            border-radius: 8px;
+            background: #eef2f7;
+            color: #344054;
+            font-size: 20px;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            background: #e1e7f0;
+        }
+
+        .form-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        @media (max-width: 880px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .task-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .topbar {
+                height: auto;
+                align-items: flex-start;
+                padding: 14px 16px;
+            }
+
+            .topbar-actions {
+                flex-wrap: wrap;
+                justify-content: flex-end;
+            }
+
+            .container {
+                width: min(100% - 24px, 1180px);
+                padding-top: 20px;
+            }
+
+            .page-head,
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .form-grid,
+            .stats-grid,
+            .task-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .supplier-header {
+                grid-template-columns: 1fr;
+            }
+
+            .supplier-side {
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <section id="loginView" class="login-shell hidden">
+        <form id="loginForm" class="login-card">
+            <h1>管理员登录</h1>
+            <p class="muted small">登录后进入压测管理后台。</p>
+            <div class="field full" style="margin-top: 20px;">
+                <label for="username">账号</label>
+                <input id="username" name="username" autocomplete="username" required>
+            </div>
+            <div class="field full" style="margin-top: 14px;">
+                <label for="password">密码</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+            <button id="loginButton" class="btn btn-primary" type="submit" style="width: 100%; margin-top: 18px;">登录</button>
+            <div id="loginError" class="error-box hidden"></div>
+        </form>
+    </section>
+
+    <section id="adminView" class="hidden">
+        <nav class="topbar">
+            <a href="/" class="brand">
+                <span class="brand-mark"></span>
+                生图压测平台
+            </a>
+            <div class="topbar-actions">
+                <a class="btn" href="/">前台提交页</a>
+                <button id="openManualTaskButton" class="btn btn-blue" type="button">手动创建任务</button>
+                <button id="logoutButton" class="btn btn-danger" type="button">退出</button>
+            </div>
+        </nav>
+
+        <main class="container">
+            <div class="page-head">
+                <div>
+                    <h1>压测管理</h1>
+                    <p class="muted small" id="lastRefreshText" style="margin-top: 7px;">等待刷新</p>
+                </div>
+                <span class="live"><span class="live-dot"></span>自动刷新</span>
+            </div>
+
+            <section class="stats-grid">
+                <article class="stat-card">
+                    <div class="stat-label">任务来源</div>
+                    <div class="stat-value" id="statSuppliers">0</div>
+                    <div class="stat-sub">供应商记录</div>
+                </article>
+                <article class="stat-card">
+                    <div class="stat-label">压测任务</div>
+                    <div class="stat-value" id="statTasks">0</div>
+                    <div class="stat-sub" id="statTasksSub">0 已完成 / 0 进行中</div>
+                </article>
+                <article class="stat-card">
+                    <div class="stat-label">管理员创建</div>
+                    <div class="stat-value" id="statAdminTasks">0</div>
+                    <div class="stat-sub">手动任务</div>
+                </article>
+                <article class="stat-card">
+                    <div class="stat-label">总成功率</div>
+                    <div class="stat-value" id="statSuccessRate">-</div>
+                    <div class="stat-sub">按请求数统计</div>
+                </article>
+            </section>
+
+            <section class="toolbar">
+                <strong>任务列表</strong>
+                <button id="refreshButton" class="btn" type="button">刷新</button>
+            </section>
+
+            <section id="supplierList" class="supplier-list">
+                <div class="empty-state">
+                    <h3>暂无压测数据</h3>
+                    <p>创建或提交任务后会显示在这里。</p>
+                </div>
+            </section>
+        </main>
+    </section>
+
+    <section id="manualTaskModal" class="modal-mask hidden" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manualTaskTitle">
+            <div class="modal-head">
+                <div>
+                    <h2 id="manualTaskTitle" class="modal-title">手动创建测试任务</h2>
+                    <p class="muted small" style="margin-top: 5px;">创建后会立即进入后台执行队列。</p>
+                </div>
+                <button id="closeManualTaskButton" class="close-btn" type="button" aria-label="关闭">×</button>
+            </div>
+
+            <form id="manualTaskForm">
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="manualName">任务名称</label>
+                            <input id="manualName" name="name" required>
+                        </div>
+                        <div class="field">
+                            <label for="manualPhone">联系电话</label>
+                            <input id="manualPhone" name="phone">
+                        </div>
+                        <div class="field full">
+                            <label for="manualUrl">API URL</label>
+                            <input id="manualUrl" name="url" placeholder="https://example.com" required>
+                        </div>
+                        <div class="field full">
+                            <label for="manualApiKey">API Key</label>
+                            <input id="manualApiKey" name="api_key" type="password" required>
+                        </div>
+                        <div class="field">
+                            <label for="manualModel">Model</label>
+                            <input id="manualModel" name="model" value="gpt-image-2" required>
+                        </div>
+                        <div class="field">
+                            <label for="manualConcurrency">并发设置</label>
+                            <input id="manualConcurrency" name="concurrency" value="20" required>
+                        </div>
+                        <div class="field">
+                            <label>模式选择</label>
+                            <div class="check-row">
+                                <input id="manualStepped" name="stepped" type="checkbox">
+                                <label for="manualStepped">阶梯式并发</label>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label>URL 规则</label>
+                            <div class="check-row">
+                                <input id="manualCustomUrl" name="custom_url" type="checkbox">
+                                <label for="manualCustomUrl">使用完整 URL</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="manualTaskError" class="error-box hidden"></div>
+                    <div id="manualTaskSuccess" class="success-box hidden"></div>
+                </div>
+                <div class="modal-foot">
+                    <span class="muted small" id="manualModePreview">单并发：20</span>
+                    <div>
+                        <button class="btn" id="cancelManualTaskButton" type="button">取消</button>
+                        <button class="btn btn-primary" id="submitManualTaskButton" type="submit">创建任务</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <script>
+        const state = {
+            authenticated: false,
+            suppliers: [],
+            tasksMap: {},
+            expandedSupplierId: null,
+            refreshTimer: null
+        };
+
+        const $ = (id) => document.getElementById(id);
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function toNumber(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function formatTime(value) {
+            if (!value) return "-";
+            const date = new Date(String(value).replace(" ", "T"));
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleString("zh-CN", {
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit"
+            });
+        }
+
+        function statusText(status) {
+            return {
+                pending: "等待中",
+                running: "运行中",
+                completed: "已完成",
+                failed: "失败"
+            }[status] || status || "-";
+        }
+
+        function sourceText(source) {
+            return source === "admin" ? "管理员创建" : "供应商提交";
+        }
+
+        function modeText(mode) {
+            return mode === "single" ? "单并发" : "阶梯式";
+        }
+
+        function showLogin() {
+            state.authenticated = false;
+            $("adminView").classList.add("hidden");
+            $("loginView").classList.remove("hidden");
+            if (state.refreshTimer) {
+                clearInterval(state.refreshTimer);
+                state.refreshTimer = null;
+            }
+        }
+
+        function showAdmin() {
+            state.authenticated = true;
+            $("loginView").classList.add("hidden");
+            $("adminView").classList.remove("hidden");
+            if (!state.refreshTimer) {
+                state.refreshTimer = setInterval(loadData, 5000);
+            }
+        }
+
+        async function apiFetch(url, options = {}) {
+            const resp = await fetch(url, {
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(options.headers || {})
+                },
+                ...options
+            });
+
+            if (resp.status === 401) {
+                showLogin();
+                throw new Error("未登录");
+            }
+
+            const text = await resp.text();
+            let data = {};
+            if (text) {
+                try {
+                    data = JSON.parse(text);
+                } catch (err) {
+                    data = { detail: text };
+                }
+            }
+
+            if (!resp.ok) {
+                throw new Error(data.detail || data.message || `HTTP ${resp.status}`);
+            }
+
+            return data;
+        }
+
+        async function checkAuth() {
+            try {
+                await apiFetch("/api/me");
+                showAdmin();
+                await loadData();
+            } catch (err) {
+                showLogin();
+            }
+        }
+
+        async function login(event) {
+            event.preventDefault();
+            const button = $("loginButton");
+            const error = $("loginError");
+            button.disabled = true;
+            error.classList.add("hidden");
+
+            try {
+                await apiFetch("/api/login", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        username: $("username").value.trim(),
+                        password: $("password").value
+                    })
+                });
+                showAdmin();
+                await loadData();
+            } catch (err) {
+                error.textContent = err.message;
+                error.classList.remove("hidden");
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function logout() {
+            try {
+                await apiFetch("/api/logout", { method: "POST" });
+            } finally {
+                showLogin();
+            }
+        }
+
+        async function loadData(options = {}) {
+            if (!state.authenticated) return;
+            const expandId = options.expandId ?? state.expandedSupplierId;
+
+            try {
+                const suppliers = await apiFetch("/api/suppliers");
+                const tasksEntries = await Promise.all(
+                    suppliers.map(async (supplier) => {
+                        const tasks = await apiFetch(`/api/tasks/${supplier.id}`);
+                        return [supplier.id, tasks];
+                    })
+                );
+
+                state.suppliers = suppliers;
+                state.tasksMap = Object.fromEntries(tasksEntries);
+                if (expandId) state.expandedSupplierId = Number(expandId);
+                renderStats();
+                renderSuppliers();
+                $("lastRefreshText").textContent = `最近刷新：${new Date().toLocaleTimeString("zh-CN")}`;
+            } catch (err) {
+                if (err.message !== "未登录") {
+                    $("lastRefreshText").textContent = `刷新失败：${err.message}`;
+                }
+            }
+        }
+
+        function renderStats() {
+            let taskCount = 0;
+            let doneCount = 0;
+            let adminTaskCount = 0;
+            let successCount = 0;
+            let requestCount = 0;
+
+            for (const tasks of Object.values(state.tasksMap)) {
+                for (const task of tasks) {
+                    taskCount += 1;
+                    if (task.status === "completed" || task.status === "failed") doneCount += 1;
+                    if (task.source === "admin") adminTaskCount += 1;
+                    successCount += toNumber(task.success_count);
+                    requestCount += toNumber(task.total_requests);
+                }
+            }
+
+            $("statSuppliers").textContent = state.suppliers.length;
+            $("statTasks").textContent = taskCount;
+            $("statTasksSub").textContent = `${doneCount} 已完成 / ${Math.max(taskCount - doneCount, 0)} 进行中`;
+            $("statAdminTasks").textContent = adminTaskCount;
+            $("statSuccessRate").textContent = requestCount ? `${Math.round(successCount / requestCount * 100)}%` : "-";
+        }
+
+        function renderSuppliers() {
+            const list = $("supplierList");
+            if (!state.suppliers.length) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <h3>暂无压测数据</h3>
+                        <p>创建或提交任务后会显示在这里。</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = state.suppliers.map((supplier) => {
+                const tasks = state.tasksMap[supplier.id] || [];
+                const expanded = Number(state.expandedSupplierId) === Number(supplier.id);
+                return `
+                    <article class="supplier-card ${expanded ? "expanded" : ""}" data-supplier-id="${supplier.id}">
+                        <button class="supplier-header" type="button" data-toggle-supplier="${supplier.id}">
+                            <div>
+                                <div class="supplier-title-row">
+                                    <span class="supplier-title">${escapeHtml(supplier.name)}</span>
+                                    <span class="badge ${supplier.source === "admin" ? "badge-admin" : "badge-supplier"}">${sourceText(supplier.source)}</span>
+                                    <span class="badge ${supplier.test_mode === "single" ? "badge-single" : "badge-step"}">${modeText(supplier.test_mode)}</span>
+                                </div>
+                                <div class="supplier-url">${escapeHtml(supplier.url)} · ${escapeHtml(supplier.model || "-")}</div>
+                            </div>
+                            <div class="supplier-side">
+                                <span>${tasks.length} 个并发级别</span>
+                                <span>${formatTime(supplier.created_at)}</span>
+                                <span>${expanded ? "收起" : "展开"}</span>
+                            </div>
+                        </button>
+                        <div class="task-panel">
+                            ${renderTasks(tasks)}
+                        </div>
+                    </article>
+                `;
+            }).join("");
+        }
+
+        function renderTasks(tasks) {
+            if (!tasks.length) {
+                return `<div class="empty-state"><h3>暂无任务</h3><p>任务记录创建后会显示在这里。</p></div>`;
+            }
+
+            return `
+                <div class="task-grid">
+                    ${tasks.map((task) => {
+                        const total = toNumber(task.total_requests);
+                        const success = toNumber(task.success_count);
+                        const failure = toNumber(task.failure_count);
+                        const successRate = total ? `${Math.round(success / total * 100)}%` : "-";
+                        const errors = parseErrors(task.error_details);
+                        return `
+                            <article class="task-card">
+                                <div class="task-head">
+                                    <span class="task-name">${toNumber(task.concurrency)} 并发</span>
+                                    <span class="badge badge-${escapeHtml(task.status || "pending")}">${statusText(task.status)}</span>
+                                </div>
+                                <div class="metric-grid">
+                                    <div class="metric">
+                                        <div class="metric-label">请求数</div>
+                                        <div class="metric-value">${total}</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-label">成功率</div>
+                                        <div class="metric-value">${successRate}</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-label">成功/失败</div>
+                                        <div class="metric-value">${success} / ${failure}</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-label">QPS</div>
+                                        <div class="metric-value">${toNumber(task.qps)}</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-label">平均耗时</div>
+                                        <div class="metric-value">${toNumber(task.avg_response_time)}s</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-label">P95</div>
+                                        <div class="metric-value">${toNumber(task.p95_response_time)}s</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-label">总耗时</div>
+                                        <div class="metric-value">${toNumber(task.total_time)}s</div>
+                                    </div>
+                                    <div class="metric">
+                                        <div class="metric-label">完成时间</div>
+                                        <div class="metric-value">${formatTime(task.completed_at)}</div>
+                                    </div>
+                                </div>
+                                ${task.image_path ? `<div style="margin-top: 12px;"><a href="${escapeHtml(task.image_path)}" target="_blank" rel="noreferrer">查看样图</a></div>` : ""}
+                                ${errors.length ? `<pre class="error-list">${escapeHtml(errors.slice(0, 6).join("\n"))}</pre>` : ""}
+                            </article>
+                        `;
+                    }).join("")}
+                </div>
+            `;
+        }
+
+        function parseErrors(value) {
+            if (!value) return [];
+            if (Array.isArray(value)) return value;
+            try {
+                const parsed = JSON.parse(value);
+                return Array.isArray(parsed) ? parsed : [String(parsed)];
+            } catch (err) {
+                return [String(value)];
+            }
+        }
+
+        function toggleSupplier(id) {
+            const numericId = Number(id);
+            state.expandedSupplierId = state.expandedSupplierId === numericId ? null : numericId;
+            renderSuppliers();
+        }
+
+        function openManualTaskModal() {
+            $("manualTaskModal").classList.remove("hidden");
+            $("manualTaskModal").setAttribute("aria-hidden", "false");
+            $("manualTaskError").classList.add("hidden");
+            $("manualTaskSuccess").classList.add("hidden");
+            $("manualName").focus();
+            updateManualModePreview();
+        }
+
+        function closeManualTaskModal() {
+            $("manualTaskModal").classList.add("hidden");
+            $("manualTaskModal").setAttribute("aria-hidden", "true");
+        }
+
+        function updateManualModePreview() {
+            const raw = $("manualConcurrency").value.trim() || "0";
+            const stepped = $("manualStepped").checked;
+            $("manualModePreview").textContent = stepped ? `阶梯式：${raw}` : `单并发：${raw.split(/[，,]/)[0].trim() || "0"}`;
+        }
+
+        async function submitManualTask(event) {
+            event.preventDefault();
+            const button = $("submitManualTaskButton");
+            const error = $("manualTaskError");
+            const success = $("manualTaskSuccess");
+
+            button.disabled = true;
+            error.classList.add("hidden");
+            success.classList.add("hidden");
+
+            try {
+                const payload = {
+                    name: $("manualName").value.trim(),
+                    phone: $("manualPhone").value.trim(),
+                    url: $("manualUrl").value.trim(),
+                    api_key: $("manualApiKey").value.trim(),
+                    model: $("manualModel").value.trim() || "gpt-image-2",
+                    custom_url: $("manualCustomUrl").checked,
+                    concurrency: $("manualConcurrency").value.trim(),
+                    stepped: $("manualStepped").checked
+                };
+
+                const result = await apiFetch("/api/admin/tasks", {
+                    method: "POST",
+                    body: JSON.stringify(payload)
+                });
+
+                success.textContent = `已创建：${result.concurrency_levels.join(", ")} 并发`;
+                success.classList.remove("hidden");
+                $("manualTaskForm").reset();
+                $("manualModel").value = "gpt-image-2";
+                $("manualConcurrency").value = "20";
+                updateManualModePreview();
+                closeManualTaskModal();
+                state.expandedSupplierId = Number(result.supplier_id);
+                await loadData({ expandId: result.supplier_id });
+            } catch (err) {
+                error.textContent = err.message;
+                error.classList.remove("hidden");
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        document.addEventListener("click", (event) => {
+            const toggle = event.target.closest("[data-toggle-supplier]");
+            if (toggle) {
+                toggleSupplier(toggle.dataset.toggleSupplier);
+            }
+
+            if (event.target === $("manualTaskModal")) {
+                closeManualTaskModal();
+            }
+        });
+
+        $("loginForm").addEventListener("submit", login);
+        $("logoutButton").addEventListener("click", logout);
+        $("refreshButton").addEventListener("click", () => loadData());
+        $("openManualTaskButton").addEventListener("click", openManualTaskModal);
+        $("closeManualTaskButton").addEventListener("click", closeManualTaskModal);
+        $("cancelManualTaskButton").addEventListener("click", closeManualTaskModal);
+        $("manualTaskForm").addEventListener("submit", submitManualTask);
+        $("manualConcurrency").addEventListener("input", updateManualModePreview);
+        $("manualStepped").addEventListener("change", updateManualModePreview);
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && !$("manualTaskModal").classList.contains("hidden")) {
+                closeManualTaskModal();
+            }
+        });
+
+        checkAuth();
+    </script>
+</body>
+
+</html>

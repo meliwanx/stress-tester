@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生图压测平台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1a1a2e;
+            overflow: hidden;
+        }
+
+        /* 背景装饰光晕 */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: -50%;
+            width: 200%;
+            height: 200%;
+            background:
+                radial-gradient(circle at 25% 20%, rgba(99, 102, 241, 0.07) 0%, transparent 50%),
+                radial-gradient(circle at 75% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 70%);
+            z-index: -1;
+            animation: bgDrift 25s ease-in-out infinite alternate;
+        }
+
+        @keyframes bgDrift {
+            0%   { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-3%, -2%) scale(1.02); }
+        }
+
+        .wrapper {
+            width: 100%;
+            max-width: 460px;
+            padding: 24px;
+        }
+
+        /* 标题区 */
+        .header {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .header .logo {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            margin-bottom: 16px;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+        }
+
+        .header .logo svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        .header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #1e1b4b, #4338ca);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            margin-top: 6px;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        /* 卡片 */
+        .card {
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 40px 36px;
+            box-shadow:
+                0 1px 2px rgba(0, 0, 0, 0.04),
+                0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+
+        /* 表单 */
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 7px;
+            letter-spacing: 0.2px;
+        }
+
+        .form-group label .required {
+            color: #ef4444;
+            margin-left: 2px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #1f2937;
+            background: #fafbfc;
+            transition: all 0.2s ease;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .form-group input:focus {
+            border-color: #818cf8;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.12);
+        }
+
+        .form-group input::placeholder {
+            color: #c0c4cc;
+        }
+
+        .form-group .hint {
+            font-size: 12px;
+            color: #a0a4ab;
+            margin-top: 5px;
+        }
+
+        /* 自定义 URL 勾选框 */
+        .custom-url-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 13px;
+            color: #4b5563;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .custom-url-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #6366f1;
+            cursor: pointer;
+        }
+
+        .url-preview {
+            font-size: 12px;
+            color: #6366f1;
+            margin-top: 6px;
+            padding: 6px 10px;
+            background: #f5f3ff;
+            border-radius: 6px;
+            word-break: break-all;
+            display: none;
+        }
+
+        .url-preview.visible {
+            display: block;
+        }
+
+        /* 按钮行 */
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: inherit;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:active { transform: scale(0.97); }
+
+        .btn-test {
+            background: #f8f9fa;
+            color: #374151;
+            border: 1.5px solid #e5e7eb;
+        }
+
+        .btn-test:hover:not(:disabled) {
+            background: #eef0f2;
+            border-color: #d1d5db;
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #6366f1, #7c3aed);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn:disabled {
+            cursor: not-allowed;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            margin-top: 22px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            line-height: 1.5;
+            animation: fadeSlide 0.3s ease;
+        }
+
+        @keyframes fadeSlide {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-bar.visible { display: flex; }
+
+        .status-bar.success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .status-bar.error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .status-bar.loading {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        /* 加载动画 */
+        .spinner {
+            width: 15px;
+            height: 15px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 底部链接 */
+        .footer {
+            text-align: center;
+            margin-top: 28px;
+        }
+
+        .footer a {
+            color: #6366f1;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .footer a:hover { color: #4338ca; }
+
+        /* 响应式 */
+        @media (max-width: 500px) {
+            .card { padding: 28px 20px; }
+            .btn-row { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="header">
+            <div class="logo">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="3" x2="12" y2="15" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h1>生图压测平台</h1>
+            <p>配置 API 参数，验证连通性后启动阶梯式压力测试</p>
+        </div>
+
+        <div class="card">
+            <form id="mainForm" onsubmit="return false;">
+                <div class="form-group">
+                    <label>供应商名称 <span class="required">*</span></label>
+                    <input type="text" id="name" placeholder="请输入供应商名称" required>
+                </div>
+
+                <div class="form-group">
+                    <label>供应商联系电话 <span class="required">*</span></label>
+                    <input type="tel" id="phone" placeholder="请输入联系电话" required>
+                </div>
+
+                <div class="form-group">
+                    <label>API 地址 <span class="required">*</span></label>
+                    <input type="url" id="url" placeholder="https://api.example.com" required oninput="updateUrlPreview()">
+                    <div class="hint" id="urlHint">默认自动拼接 <code>/v1/images/generations</code></div>
+                    <label class="custom-url-row">
+                        <input type="checkbox" id="customUrl" onchange="toggleCustomUrl()">
+                        <span>使用完整自定义 URL（不自动拼接路径）</span>
+                    </label>
+                    <div class="url-preview" id="urlPreview"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>API Key <span class="required">*</span></label>
+                    <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxx" required>
+                    <div class="hint" style="color:#dc2626;font-weight:500;">请确保 Key 额度至少可生成 1000 张图片</div>
+                </div>
+
+                <div class="form-group">
+                    <label>模型名称</label>
+                    <input type="text" id="model" placeholder="gpt-image-2" value="gpt-image-2">
+                </div>
+
+                <div class="btn-row">
+                    <button type="button" class="btn btn-test" id="btnTest" onclick="testConnection()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        测试连接
+                    </button>
+                    <button type="button" class="btn btn-submit" id="btnSubmit" onclick="submitForm()" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        提交压测
+                    </button>
+                </div>
+            </form>
+
+            <div class="status-bar" id="statusBox">
+                <span id="statusIcon"></span>
+                <span id="statusText"></span>
+            </div>
+            <div class="test-image-wrap" id="testImageWrap" style="display:none;margin-top:16px;text-align:center;">
+                <img id="testImage" src="" alt="测试生成图片" style="max-width:100%;border-radius:10px;border:1px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <div style="font-size:12px;color:#94a3b8;margin-top:6px;">测试生成的图片</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <span style="font-size:12px;color:#94a3b8;">生图压测平台 v1.1</span>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 页面状态管理
+         * testPassed: 标记连接测试是否通过，通过后才允许提交
+         */
+        let testPassed = false;
+        const DEFAULT_PATH = '/v1/images/generations';
+
+        /**
+         * 切换自定义 URL 模式
+         * 勾选后不再自动拼接默认路径，输入框提示也相应变化
+         */
+        function toggleCustomUrl() {
+            const custom = document.getElementById('customUrl').checked;
+            const urlInput = document.getElementById('url');
+            const hint = document.getElementById('urlHint');
+            if (custom) {
+                urlInput.placeholder = 'https://api.example.com/custom/path';
+                hint.innerHTML = '将使用您填写的完整 URL 发送请求';
+            } else {
+                urlInput.placeholder = 'https://api.example.com';
+                hint.innerHTML = '默认自动拼接 <code>/v1/images/generations</code>';
+            }
+            updateUrlPreview();
+        }
+
+        /**
+         * 更新 URL 预览
+         * 实时展示最终请求时会使用的完整 URL
+         */
+        function updateUrlPreview() {
+            const raw = document.getElementById('url').value.trim();
+            const preview = document.getElementById('urlPreview');
+            if (!raw) {
+                preview.className = 'url-preview';
+                return;
+            }
+            const custom = document.getElementById('customUrl').checked;
+            let finalUrl;
+            if (custom) {
+                finalUrl = raw;
+            } else {
+                finalUrl = raw.replace(/\/$/, '') + DEFAULT_PATH;
+            }
+            preview.textContent = '实际请求地址: ' + finalUrl;
+            preview.className = 'url-preview visible';
+        }
+
+        /**
+         * 显示状态提示
+         * @param {'loading'|'success'|'error'} type - 状态类型
+         * @param {string} text - 提示文本
+         */
+        function showStatus(type, text) {
+            const box = document.getElementById('statusBox');
+            const icon = document.getElementById('statusIcon');
+            const textEl = document.getElementById('statusText');
+
+            box.className = 'status-bar visible ' + type;
+            textEl.textContent = text;
+
+            if (type === 'loading') {
+                icon.innerHTML = '<div class="spinner"></div>';
+            } else if (type === 'success') {
+                icon.textContent = '✓';
+            } else {
+                icon.textContent = '✗';
+            }
+        }
+
+        /**
+         * 隐藏状态提示
+         */
+        function hideStatus() {
+            document.getElementById('statusBox').className = 'status-bar';
+        }
+
+        /**
+         * 测试 API 连接
+         * 使用低质量单次请求验证 URL 和 Key 是否可用
+         */
+        async function testConnection() {
+            const url = document.getElementById('url').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const model = document.getElementById('model').value.trim() || 'gpt-image-2';
+            const customUrl = document.getElementById('customUrl').checked;
+
+            if (!url || !apiKey) {
+                showStatus('error', '请先填写 API 地址和 API Key');
+                return;
+            }
+
+            const btn = document.getElementById('btnTest');
+            btn.disabled = true;
+            testPassed = false;
+            document.getElementById('btnSubmit').disabled = true;
+            showStatus('loading', '正在测试连接，首次请求可能需要较长时间（超时 ' + (1200) + ' 秒）...');
+
+            try {
+                const resp = await fetch('/api/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, api_key: apiKey, model, custom_url: customUrl })
+                });
+                const data = await resp.json();
+
+                if (resp.ok && data.success) {
+                    testPassed = true;
+                    document.getElementById('btnSubmit').disabled = false;
+                    showStatus('success', data.message || '连接测试通过');
+                    if (data.image_path) {
+                        const img = document.getElementById('testImage');
+                        img.src = data.image_path;
+                        document.getElementById('testImageWrap').style.display = 'block';
+                    }
+                } else {
+                    showStatus('error', data.detail || '测试失败，请检查配置');
+                }
+            } catch (e) {
+                showStatus('error', '请求异常: ' + e.message);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        /**
+         * 提交压测任务
+         * 连接测试通过后，提交表单创建供应商并启动后台压测
+         */
+        async function submitForm() {
+            if (!testPassed) {
+                showStatus('error', '请先通过连接测试');
+                return;
+            }
+
+            const name = document.getElementById('name').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const url = document.getElementById('url').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const model = document.getElementById('model').value.trim() || 'gpt-image-2';
+            const customUrl = document.getElementById('customUrl').checked;
+
+            if (!name) {
+                showStatus('error', '请填写供应商名称');
+                return;
+            }
+            if (!phone) {
+                showStatus('error', '请填写供应商联系电话');
+                return;
+            }
+
+            const btn = document.getElementById('btnSubmit');
+            btn.disabled = true;
+            showStatus('loading', '正在提交压测任务...');
+
+            try {
+                const resp = await fetch('/api/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, phone, url, api_key: apiKey, model, custom_url: customUrl })
+                });
+                const data = await resp.json();
+
+                if (resp.ok && data.success) {
+                    showStatus('success', '压测任务已提交！将按 20 → 50 → 100 → 500 并发阶梯执行');
+                    setTimeout(() => {
+                        if (confirm('压测任务已成功提交，是否前往管理页面查看进度？')) {
+                            window.location.href = '/admin';
+                        } else {
+                            // 重置表单
+                            document.getElementById('mainForm').reset();
+                            document.getElementById('model').value = 'gpt-image-2';
+                            testPassed = false;
+                            btn.disabled = true;
+                            hideStatus();
+                        }
+                    }, 1200);
+                } else {
+                    showStatus('error', data.detail || '提交失败');
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                showStatus('error', '请求异常: ' + e.message);
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
